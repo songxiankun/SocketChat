@@ -3,7 +3,4 @@ project(Server)
 
 set(CMAKE_CXX_STANDARD 11)
 
-add_executable(server Config.hpp
-        Socket.hpp Socket.cpp
-        RecordLogs.hpp RecordLogs.cpp
-        BaseLogs.hpp Test.cpp)
+add_executable(server server.cpp server.hpp basesocket.cpp basesocket.hpp)
