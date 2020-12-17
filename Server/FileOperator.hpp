@@ -11,7 +11,7 @@
 
 class FileOperator {
 private:
-    std::fstream* open;
+    std::ifstream* open;
 
 public:
     FileOperator();

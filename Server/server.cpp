@@ -46,8 +46,7 @@ void Server::Socket() {
     if (!IsValid(_socket) && count < 3) {
         count++;
         goto FLAG;
-    }
-    else if (count == 3)
+    } else if (count == 3)
         exit(1);
     // 重置计数器
     count = 0;
@@ -66,8 +65,7 @@ void Server::Bind() {
     if (!IsValid(ret) && count < 3) {
         count++;
         goto FLAG;
-    }
-    else if (count == 3)  // 绑定失败
+    } else if (count == 3)  // 绑定失败
     {
         Close(_socket);
         exit(1);
@@ -130,11 +128,6 @@ int Server::Send(const SOCKET &fd, const void *buff, const int &bufflen) {
     return send(fd, buff, (size_t) bufflen, 0);
 }
 
-// 简单接收接口
-int Server::Recv(const SOCKET &fd, void *buff, const int &bufflen) {
-    return recv(fd, buff, bufflen, 0);
-}
-
 // 封装发送
 void Server::SendMsg(const SOCKET &fd, const void *buff, const int &bufflen, const int &type) {
     if (!IsValid(fd))
@@ -144,36 +137,56 @@ void Server::SendMsg(const SOCKET &fd, const void *buff, const int &bufflen, con
 }
 
 // 封装收取消息
-void Server::RecvMsg(const SOCKET &fd) {
+void Server::RecvMsg(SOCKET &fd) {
     if (!IsValid(fd))
         return;
 
+    // 先接收header
     struct DataHeader dataHeader(-1);
-
-    short len = recv(fd, (void *) &dataHeader, sizeof(dataHeader), 0);
-    std::clog << "CMD : " << dataHeader.cmd << std::endl;
-    if (len <= 0)
+    // 清空数据
+//    memset(&dataHeader,0, sizeof dataHeader);
+    // 获取接收的header大小
+    short len = recv(fd, (char *) &dataHeader, sizeof(dataHeader), 0);
+    // 测试
+//    struct Login login;
+//    recv(fd, (char*)&login + len, login.dataLength - len, 0);
+//    std::cout << login.userName << " " << login.passWord << std::endl;
+//    return;
+//     测试 end
+    // 如果接收消息<= 0 删除客户端
+    if (len <= 0) {
+        FD_CLR(fd, &rfds);
+        FD_CLR(fd, &wfds);
+        Close(fd);
+        if (fd == maxfd) {
+            maxfd -= 1;
+        }
+        client_list.remove(fd);
         return;
+    }
 
-    // 消息msg
-    std::string login_msg{0};
 
+    // 接收消息msg
+    std::string login_msg{};
     // 返回结果
-    struct LogInOutResult logInOutResult(dataHeader.cmd);
+    struct LogInOutResult logInOutResult(-1);
     // 发送命令
     switch (dataHeader.cmd) {
         case CMD_LOGIN:  // 登陆
         {
             if (Login(fd, login_msg, len)) {
                 // 登陆成功
-                logInOutResult.loginMsg = login_msg;
+//                memset(&logInOutResult, 0 , sizeof logInOutResult);
+                strcpy(logInOutResult.loginMsg, login_msg.c_str());
                 logInOutResult.result = 0;
+                logInOutResult.cmd = CMD_LOGINOUT_RESULT;
                 int send_len = Send(fd, (void *) &logInOutResult, logInOutResult.dataLength);
                 std::clog << "登陆成功：发送数据长度为：" << send_len << "Bytes!!!" << std::endl;
             } else {
                 // 登陆失败
+//                memset(&logInOutResult, 0 , sizeof logInOutResult);
                 logInOutResult.cmd = CMD_LOGINOUT_RESULT;
-                logInOutResult.loginMsg = login_msg;
+                strcpy(logInOutResult.loginMsg, login_msg.c_str());
                 logInOutResult.result = 1;
                 int send_len = Send(fd, (void *) &logInOutResult, logInOutResult.dataLength);
                 std::clog << "登陆失败：发送数据长度为：" << send_len << "Bytes!!!" << std::endl;
@@ -181,7 +194,8 @@ void Server::RecvMsg(const SOCKET &fd) {
             break;
         }
         case CMD_LOGOUT: {
-            logInOutResult.loginMsg = "success: 登出成功!!!";
+//            memset(&logInOutResult, 0 , sizeof logInOutResult);
+            strcpy(logInOutResult.loginMsg, "success: 登出成功!!!");
             logInOutResult.result = 0;
             int send_len = Send(fd, (void *) &logInOutResult, logInOutResult.dataLength);
             std::clog << "登出成功：发送数据长度为：" << send_len << "Bytes!!!" << std::endl;
@@ -212,14 +226,14 @@ void Server::BroadcaseMsg(const SOCKET &fd, const std::string &msg, bool isBroad
  * @param fd
  * @return
  */
-bool Server::Login(const SOCKET &fd, std::string &login_msg, const int &already_len) {
+bool Server::Login(SOCKET &fd, std::string &login_msg, const int &already_len) {
     if (!IsValid(fd))
         return false;
 
     // 登陆结构体
     struct Login login{};
 
-    if (Recv(fd, (void *) (&login + already_len), login.dataLength - already_len) <= 0) {
+    if (recv(fd, (char *) &login + already_len, login.dataLength - already_len, 0) <= 0) {
         login_msg = "error: 接收数据为空!!!";
         return false;
     }
@@ -263,10 +277,8 @@ void Server::ServerRun() {
  * 更新select的集合
  * @param flag
  */
-void Server::Update(bool flag)
-{
-    if (flag)
-    {
+void Server::Update(bool flag) {
+    if (flag) {
         // 遍历client_list是否有新加入的文件描述符将其写入到rfds 和 wdfs
         for (auto iter : client_list) {
             if (iter > 0) {
@@ -284,7 +296,16 @@ void Server::Select() {
     client_list.push_back(_socket);
 
     for (;;) {
-        Update(isChange);
+//        Update(isChange);
+// 遍历client_list是否有新加入的文件描述符将其写入到rfds 和 wdfs
+        for (auto iter : client_list) {
+            if (iter > 0) {
+                FD_SET(iter, &rfds);
+                FD_SET(iter, &wfds);
+                if (iter > maxfd)
+                    maxfd = iter;
+            }
+        }
         switch (select(maxfd + 1, &rfds, &wfds, nullptr, nullptr)) {
             case 0: {
                 std::cerr << "error: timeout" << std::endl;
@@ -303,13 +324,9 @@ void Server::Select() {
                         // new_sock happened read events
                         // 获取消息
                         RecvMsg(iter);
-                    }
-                    else if (iter != _socket && FD_ISSET(iter, &wfds))
-                    {
+                    } else if (iter != _socket && FD_ISSET(iter, &wfds)) {
                         // TODO 服务器发送消息给客户端
-                    }
-                    else
-                    {
+                    } else {
                         isChange = false;
                     }
                 }

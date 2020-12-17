@@ -5,8 +5,8 @@
 #include "FileOperator.hpp"
 
 FileOperator::FileOperator() : open(nullptr) {
-    open = new std::fstream;
-    open->open("userdata.dat", std::ios::out);
+    open = new std::ifstream;
+    open->open("userdata.dat");
 }
 
 FileOperator::~FileOperator() {
@@ -24,6 +24,12 @@ bool FileOperator::UserLogin(const std::string &username, const std::string &pas
         return false;
     }
 
+    // TODO 文件指针已关闭
+    if (open == nullptr)
+    {
+        open = new std::ifstream;
+        open->open("userdata.dat");
+    }
     // 文件是否打开
     if (!open->is_open()) {
         msg = "error: 用户文件遗失，请联系管理员!!!";
@@ -42,6 +48,7 @@ bool FileOperator::UserLogin(const std::string &username, const std::string &pas
             msg = "success: 登陆成功!!!";
             // 关闭文件指针
             open->close();
+            delete open;
             open = nullptr;
             return true;
         }
@@ -49,6 +56,7 @@ bool FileOperator::UserLogin(const std::string &username, const std::string &pas
     msg = "error: 账号或用户名错误!!!";
     // 关闭文件指针
     open->close();
+    delete open;
     open = nullptr;
     return false;
 }

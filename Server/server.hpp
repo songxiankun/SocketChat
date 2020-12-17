@@ -32,16 +32,14 @@ private:
     void Update(bool);
     // 发送
     int Send(const SOCKET& fd, const void* buff, const int& bufflen);
-    // 接收
-    int Recv(const SOCKET& fd, void* buff, const int& bufflen);
     // 发送
     void SendMsg(const SOCKET& fd, const void* buff, const int& bufflen, const int& type);
     // 收取
-    void RecvMsg(const SOCKET& fd);
+    void RecvMsg(SOCKET& fd);
     // 广播发送消息
     void BroadcaseMsg(const SOCKET& fd, const std::string& msg, bool isBroad = true);
     // 数据解析
-    bool Login(const SOCKET& fd, std::string& login_msg, const int& already_len);
+    bool Login(SOCKET& fd, std::string& login_msg, const int& already_len);
     // 关闭
     void Close(SOCKET& fd);
     // 多进程

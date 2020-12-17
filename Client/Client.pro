@@ -9,14 +9,22 @@ CONFIG += c++11
 #DEFINES += QT_DISABLE_DEPRECATED_BEFORE=0x060000    # disables all the APIs deprecated before Qt 6.0.0
 
 SOURCES += \
+    connectserver.cpp \
     main.cpp \
-    chatroom.cpp
+    chatroom.cpp \
+    userlogin.cpp
 
 HEADERS += \
-    chatroom.h
+    chatroom.h \
+    connectserver.h \
+    userlogin.h \
+    Common.hpp
 
 FORMS += \
-    chatroom.ui
+    chatroom.ui \
+    userlogin.ui
+
+ICON = Icon.icns
 
 # Default rules for deployment.
 qnx: target.path = /tmp/$${TARGET}/bin

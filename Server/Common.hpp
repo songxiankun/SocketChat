@@ -64,7 +64,7 @@ struct LogInOutResult : public DataHeader
         dataLength = sizeof(LogInOutResult);
     }
     int             result{};
-    std::string     loginMsg{};
+    char            loginMsg[128]{};
 };
 //  消息提封装结束 //
 
