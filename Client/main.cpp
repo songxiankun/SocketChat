@@ -10,7 +10,6 @@ int main(int argc, char *argv[])
 
     UserLogin userLogin;
     userLogin.show();
-//    ChatRoom w;
-//    w.show();
+
     return a.exec();
 }

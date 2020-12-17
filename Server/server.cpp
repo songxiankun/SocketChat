@@ -102,7 +102,8 @@ void Server::Accept() {
     FLAG:
     connfd = accept(_socket, (struct sockaddr *) &_client, &client_len);
 
-    std::clog << "client_ip : " << inet_ntoa(_client.sin_addr) << "\t"
+    std::clog << "connfd: " << connfd << "\t"
+              << "client_ip : " << inet_ntoa(_client.sin_addr) << "\t"
               << "client_port: " << htons(_client.sin_port) << std::endl;
 
     // 判断
@@ -115,8 +116,8 @@ void Server::Accept() {
         exit(1);
     } else {
         // 添加到list中
-        client_list.push_back(connfd);
-        isChange = true;                    // 新增了
+        new_client_list.push_back(connfd);
+        //close(connfd);
         if (connfd > maxfd)
             maxfd = connfd;
     }
@@ -144,7 +145,7 @@ void Server::RecvMsg(SOCKET &fd) {
     // 先接收header
     struct DataHeader dataHeader(-1);
     // 清空数据
-//    memset(&dataHeader,0, sizeof dataHeader);
+    memset(&dataHeader,0, sizeof dataHeader);
     // 获取接收的header大小
     short len = recv(fd, (char *) &dataHeader, sizeof(dataHeader), 0);
     // 测试
@@ -155,13 +156,15 @@ void Server::RecvMsg(SOCKET &fd) {
 //     测试 end
     // 如果接收消息<= 0 删除客户端
     if (len <= 0) {
+        std::cout << "客户端退出" << std::endl;
+        // 关闭连接
+        // 客户端list 清除
         FD_CLR(fd, &rfds);
         FD_CLR(fd, &wfds);
-        Close(fd);
-        if (fd == maxfd) {
+        new_client_list.remove(fd);
+        if (fd == maxfd)
             maxfd -= 1;
-        }
-        client_list.remove(fd);
+        close(fd);
         return;
     }
 
@@ -176,25 +179,27 @@ void Server::RecvMsg(SOCKET &fd) {
         {
             if (Login(fd, login_msg, len)) {
                 // 登陆成功
-//                memset(&logInOutResult, 0 , sizeof logInOutResult);
+                memset(&logInOutResult, 0 , sizeof logInOutResult);
                 strcpy(logInOutResult.loginMsg, login_msg.c_str());
                 logInOutResult.result = 0;
                 logInOutResult.cmd = CMD_LOGINOUT_RESULT;
+                logInOutResult.dataLength = sizeof(logInOutResult);
                 int send_len = Send(fd, (void *) &logInOutResult, logInOutResult.dataLength);
                 std::clog << "登陆成功：发送数据长度为：" << send_len << "Bytes!!!" << std::endl;
             } else {
                 // 登陆失败
-//                memset(&logInOutResult, 0 , sizeof logInOutResult);
+                memset(&logInOutResult, 0 , sizeof logInOutResult);
                 logInOutResult.cmd = CMD_LOGINOUT_RESULT;
                 strcpy(logInOutResult.loginMsg, login_msg.c_str());
                 logInOutResult.result = 1;
+                logInOutResult.dataLength = sizeof(logInOutResult);
                 int send_len = Send(fd, (void *) &logInOutResult, logInOutResult.dataLength);
                 std::clog << "登陆失败：发送数据长度为：" << send_len << "Bytes!!!" << std::endl;
             }
             break;
         }
         case CMD_LOGOUT: {
-//            memset(&logInOutResult, 0 , sizeof logInOutResult);
+            memset(&logInOutResult, 0 , sizeof logInOutResult);
             strcpy(logInOutResult.loginMsg, "success: 登出成功!!!");
             logInOutResult.result = 0;
             int send_len = Send(fd, (void *) &logInOutResult, logInOutResult.dataLength);
@@ -250,7 +255,6 @@ void Server::Close(SOCKET &fd) {
     {
         close(fd);
         fd = INVALID_SOCKET;
-        client_list.clear();
     }
 }
 
@@ -274,30 +278,17 @@ void Server::ServerRun() {
 }
 
 /**
- * 更新select的集合
- * @param flag
+ * select 模型
  */
-void Server::Update(bool flag) {
-    if (flag) {
-        // 遍历client_list是否有新加入的文件描述符将其写入到rfds 和 wdfs
-        for (auto iter : client_list) {
-            if (iter > 0) {
-                FD_SET(iter, &rfds);
-                FD_SET(iter, &wfds);
-                if (iter > maxfd)
-                    maxfd = iter;
-            }
-        }
-    }
-}
-
 void Server::Select() {
     // 将创建的socket文件描述符加入list
     client_list.push_back(_socket);
-
+    new_client_list.push_back(_socket);
+    // 死循环
     for (;;) {
-//        Update(isChange);
-// 遍历client_list是否有新加入的文件描述符将其写入到rfds 和 wdfs
+        // 遍历client_list是否有新加入的文件描述符将其写入到rfds 和 wdfs
+        client_list.clear();
+        client_list = new_client_list;
         for (auto iter : client_list) {
             if (iter > 0) {
                 FD_SET(iter, &rfds);
@@ -306,13 +297,15 @@ void Server::Select() {
                     maxfd = iter;
             }
         }
-        switch (select(maxfd + 1, &rfds, &wfds, nullptr, nullptr)) {
-            case 0: {
+        int ret = select(maxfd + 1, &rfds, &wfds, nullptr, nullptr);
+        switch (ret) {
+            case 0: { // 超时返回0
                 std::cerr << "error: timeout" << std::endl;
                 break;
             }
-            case -1: {
+            case -1: {  // 出错
                 std::cerr << "error: select" << std::endl;
+                exit(1);
                 break;
             }
             default: {
@@ -326,8 +319,6 @@ void Server::Select() {
                         RecvMsg(iter);
                     } else if (iter != _socket && FD_ISSET(iter, &wfds)) {
                         // TODO 服务器发送消息给客户端
-                    } else {
-                        isChange = false;
                     }
                 }
                 break;
@@ -340,6 +331,5 @@ void Server::Select() {
 int main(int argc, char *argv[]) {
     Server server;
     server.ServerRun();
-
     return 0;
 }

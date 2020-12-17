@@ -28,8 +28,6 @@ private:
     void Accept();
     // select 模型
     void Select();
-    // 是否更新select集合 优化
-    void Update(bool);
     // 发送
     int Send(const SOCKET& fd, const void* buff, const int& bufflen);
     // 发送
